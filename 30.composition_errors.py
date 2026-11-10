@@ -3,12 +3,17 @@
 
 import sys, os, time
 import numpy as np, pandas as pd
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = HERE if os.path.exists(os.path.join(HERE, "alloycv_common.py")) else os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+
 import alloycv_common as ac
 from sklearn.metrics import r2_score, mean_absolute_error
-RS=getattr(ac,'RS',42); HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); W=(os.path.join(ROOT,'results')+os.sep) if os.path.isdir(os.path.join(ROOT,'results')) else ROOT+os.sep
+RS=getattr(ac,'RS',42); HERE=os.path.dirname(os.path.abspath(__file__)); W=os.path.join(HERE,'results')+os.sep
+W = (os.path.join(ROOT, "results") + os.sep) if os.path.isdir(os.path.join(ROOT, "results")) else ROOT + os.sep
 if not os.path.isdir(W): W=HERE+os.sep
-D=os.path.join(ROOT,'data') if os.path.isdir(os.path.join(ROOT,'data')) else ROOT
+D=os.path.join(os.path.dirname(os.path.abspath(__file__)),'data')
 if not os.path.isdir(D): D=HERE
 def load(n):
     df=ac.dataset_A() if n=='A' else ac.dataset_B()

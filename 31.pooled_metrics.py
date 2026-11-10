@@ -3,13 +3,17 @@
 
 import sys, os, time
 import numpy as np, pandas as pd
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = HERE if os.path.exists(os.path.join(HERE, "alloycv_common.py")) else os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+
 import alloycv_common as ac
 from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); W=(os.path.join(ROOT,'results')+os.sep) if os.path.isdir(os.path.join(ROOT,'results')) else ROOT+os.sep
 RS=getattr(ac,'RS',42)
+W = (os.path.join(ROOT, "results") + os.sep) if os.path.isdir(os.path.join(ROOT, "results")) else ROOT + os.sep
 def oof(df, feats, target, protocol, repeats=10, seed0=1000):
     sub=df[df[target].notna()]
     X=sub[feats]; y=sub[target].to_numpy(dtype=float)
