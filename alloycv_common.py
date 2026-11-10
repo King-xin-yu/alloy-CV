@@ -1,21 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Shared analysis and drawing code for the alloy-CV data repository.
-
-This module holds everything the per-panel scripts need: dataset loading, the
-feature lists, the model pipelines with their randomized-search grids, the two
-cross-validation protocols, the NSGA-II surrogate optimization with its
-bootstrap, and one draw function per panel of the paper.
-
-Every draw function takes a matplotlib Axes as its first argument and draws a
-single panel onto it, so a composition script outside the repository can lay
-the panels out without touching the analysis code::
-
-    import matplotlib.pyplot as plt
-    import alloycv_common as ac
-
-    fig, ax = plt.subplots(figsize=(5.6, 2.8))
-    ac.panel_test_r2_uts(ax)
-"""
+"""Shared code for the per-figure scripts: data loading, feature lists, model
+pipelines and search grids, the two cross-validation protocols, the NSGA-II
+search with bootstrap, and one draw function per panel. Each draw function
+takes a matplotlib Axes as its first argument and draws a single panel."""
 
 import hashlib
 from pathlib import Path
@@ -23,6 +10,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
+
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -58,7 +48,9 @@ CB = "#2b6cb0"           # blue: dataset A / the reference model
 CR = "#c53030"           # red: dataset B / grouped CV
 GY = "#9aa3ad"           # grey: reference clouds and uncertainty
 CB_LAYOUT = "#4477AA"    # blue of the grouped/random CV box plots (Figures 5-6)
-CR_LAYOUT = "#CC6677"    # red of the grouped/random CV box plots (Figures 5-6)
+CR_LAYOUT = "#CC6677"
+CB_LIGHT = "#6992BB"
+CR_LIGHT = "#D68592"    # red of the grouped/random CV box plots (Figures 5-6)
 
 FEATURES_A = ["Ni", "Si", "Ce", "La", "cold_rolling_strain", "annealing_T", "annealing_t",
               "solution_T", "solution_t", "aging_T", "aging_t", "log_Ni", "log_Si",
@@ -410,8 +402,8 @@ def panel_workflow(ax):
 
     box(0, 10.4, 5.2, 0.95, "Literature data compilation\nCu-Ni-Si-Ce-La alloys", "#dbe7f5")
     arrow(-0.9, 9.9, -1.9, 9.0); arrow(0.9, 9.9, 1.9, 9.0)
-    box(-1.95, 8.55, 3.1, 1.25, "Dataset A (full-route, n = 448)\nwith annealing records\n20 features", "#dbe7f5", fs=8)
-    box(1.95, 8.55, 3.1, 1.25, "Dataset B (cold-rolled-only, n = 290)\nannealing records removed\n17 features", "#f5d9d9", fs=8)
+    box(-1.95, 8.55, 3.1, 1.25, "Dataset A (full-route, n = 448)\nno hot rolling\n20 features", "#dbe7f5", fs=8)
+    box(1.95, 8.55, 3.1, 1.25, "Dataset B (cold-rolled-only, n = 290)\nno annealing step\n17 features", "#f5d9d9", fs=8)
     arrow(-1.95, 7.9, -0.7, 7.05); arrow(1.95, 7.9, 0.7, 7.05)
     box(0, 6.6, 5.6, 0.95, "Feature engineering\nlog transforms, precipitation index, binary indicators", "#e8eef5")
     arrow(0, 6.1, 0, 5.45)
@@ -430,14 +422,23 @@ def _draw_composition_boxplot(ax, element, letter):
     A, B = dataset_A(), dataset_B()
     bp = ax.boxplot([A[element].values, B[element].values], positions=[1, 2], widths=0.5,
                     patch_artist=True, showfliers=True,
-                    medianprops=dict(color="black"),
-                    flierprops=dict(marker="o", markersize=2, alpha=0.4))
-    for patch, color in zip(bp["boxes"], [CB, CR]):
+                    medianprops=dict(color="black", linewidth=1.1),
+                    flierprops=dict(marker="o", markersize=3.2, markerfacecolor="none",
+                                    markeredgewidth=0.6, alpha=0.9))
+    for patch, color in zip(bp["boxes"], [CB_LAYOUT, CR_LAYOUT]):
         patch.set_facecolor(color); patch.set_alpha(0.8); patch.set_edgecolor("black")
-    ax.set_xticks([1, 2]); ax.set_xticklabels(["A", "B"])
-    ax.set_ylabel(f"{element} (wt.%)")
-    ax.text(-0.18, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom", fontsize=14)
-
+    fliers = bp["fliers"]
+    if len(fliers) >= 2:
+        fliers[0].set_markeredgecolor(CB_LIGHT)
+        fliers[1].set_markeredgecolor(CR_LIGHT)
+    ax.set_xticks([1, 2])
+    ax.set_xticklabels(["A", "B"], fontweight="bold", fontsize=10)
+    ax.set_ylabel(f"{element} (wt.%)", fontweight="bold", fontsize=10)
+    ax.tick_params(labelsize=10, width=0.9, direction="in", top=False, right=False)
+    for t in ax.get_yticklabels():
+        t.set_fontweight("bold")
+    ax.text(-0.18, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom",
+            fontsize=14, fontweight="bold")
 
 def panel_ni(ax):
     """Ni content of datasets A and B."""
@@ -469,30 +470,35 @@ def panel_corr_matrix(ax):
 
 
 def _draw_four_model_bars(ax, target, letter):
-    r2 = {"A": four_model_scores(dataset_A(), FEATURES_A, target),
-          "B": four_model_scores(dataset_B(), FEATURES_B, target)}
+    _rows = pd.read_csv(BASE_DIR / "results" / "four_model_test_r2.csv")
+    _sel = _rows[_rows["target"] == target]
+    r2 = {ds: {row["model"]: float(row["test_r2"]) for _, row in _sel[_sel["dataset"] == ds].iterrows()}
+          for ds in ("A", "B")}
     names = ["RF", "SVR", "XGB", "GBR"]
     x = np.arange(4); w = 0.38
     va = [r2["A"][n] for n in names]
     vb = [r2["B"][n] for n in names]
-    ax.bar(x - w/2, va, w, color=CB, label="A (full-route)", edgecolor="black", linewidth=0.5)
-    ax.bar(x + w/2, vb, w, color=CR, label="B (cold-rolled-only)", edgecolor="black", linewidth=0.5)
+    ax.bar(x - w/2, va, w, color=CB_LAYOUT, label="A (full-route)", edgecolor="black", linewidth=0.5)
+    ax.bar(x + w/2, vb, w, color=CR_LAYOUT, label="B (cold-rolled-only)", edgecolor="black", linewidth=0.5)
     for i, v in enumerate(va):
-        ax.text(i - w/2, v + 0.02, f"{v:.2f}", ha="center", fontsize=6.5)
+        ax.text(i - w/2, v + 0.02, f"{v:.2f}", ha="center", fontsize=7.5,fontweight="bold")
     for i, v in enumerate(vb):
-        ax.text(i + w/2, v + 0.02, f"{v:.2f}", ha="center", fontsize=6.5)
+        ax.text(i + w/2, v + 0.02, f"{v:.2f}", ha="center", fontsize=7.5,fontweight="bold")
     ba = int(np.argmax(va)); bb = int(np.argmax(vb))
     ax.text(ba - w/2, va[ba] + 0.06, "\u2605", ha="center", va="bottom", fontsize=13, fontfamily="DejaVu Sans")
     ax.text(bb + w/2, vb[bb] + 0.06, "\u2605", ha="center", va="bottom", fontsize=13, fontfamily="DejaVu Sans")
-    ax.set_xticks(x); ax.set_xticklabels(names)
-    ax.set_ylabel(f"{target} test R\u00b2" if letter == "a" else "Conductivity test R\u00b2")
+    ax.set_xticks(x); ax.set_xticklabels(names, fontsize=11, fontweight="bold")
+    ax.set_ylabel((f"{target} test R\u00b2" if letter == "a" else "Conductivity test R\u00b2"), fontsize=11, fontweight="bold")
     ax.set_ylim(0, 1.1)
+    ax.tick_params(direction="in", labelsize=11, top=False, right=False)
+    for _t in ax.get_yticklabels():
+        _t.set_fontweight("bold")
     if letter == "a":
         # place the legend above the axes: inside the axes it collides with the star
         # markers and the value labels of the tallest bars.
-        ax.legend(frameon=False, fontsize=7, loc="lower center",
+        ax.legend(frameon=False, prop={"family": "Times New Roman", "weight": "bold", "size": 8}, loc="lower center",
                   bbox_to_anchor=(0.5, 1.005), ncol=2)
-    ax.text(-0.18, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom", fontsize=14)
+    ax.text(-0.18, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom", fontsize=14, fontweight="bold")
     no_ticks(ax)
 
 
@@ -507,35 +513,48 @@ def panel_test_r2_conductivity(ax):
 
 
 def _draw_cv_boxplot(ax, target, letter=None):
-    cv = cv_results()
-    a_rr, _ = cv[("A", target)]
-    b_rr, _ = cv[("B", target)]
-    a_rg = grouped_cv_repeated("A", dataset_A(), FEATURES_A, target)
-    b_rg = grouped_cv_repeated("B", dataset_B(), FEATURES_B, target)
+    _rows = pd.read_csv(BASE_DIR / "results" / "cv_per_fold_R2.csv")
+
+    def _fold_values(ds, protocol):
+        sub = _rows[(_rows["dataset"] == ds) & (_rows["target"] == target)
+                    & (_rows["protocol"] == protocol)]
+        return sub["r2"].to_numpy(float)
+
+    a_rr, a_rg = _fold_values("A", "random"), _fold_values("A", "grouped")
+    b_rr, b_rg = _fold_values("B", "random"), _fold_values("B", "grouped")
     data = [a_rr, a_rg, b_rr, b_rg]; pos = [1, 2, 3, 4]
     bp = ax.boxplot(data, positions=pos, widths=0.45, patch_artist=True, showfliers=False,
-                    medianprops=dict(color="black"))
+                    medianprops=dict(color="black", linewidth=1.2))
     for patch, c in zip(bp["boxes"], [CB_LAYOUT, CR_LAYOUT, CB_LAYOUT, CR_LAYOUT]):
         patch.set_facecolor(c); patch.set_alpha(0.8); patch.set_edgecolor("black")
-    for p, vals in zip(pos, data):
+    colors_pts = [CB_LIGHT, CR_LIGHT, CB_LIGHT, CR_LIGHT]
+    for p, vals, ec in zip(pos, data, colors_pts):
         ax.scatter(p + np.random.default_rng(0).normal(0, 0.045, len(vals)), vals,
-                   s=8, color="gray", zorder=3, alpha=0.30)
+                   s=10, facecolors="none", edgecolors=ec, linewidths=0.55,
+                   zorder=3, alpha=0.85)
     for p, vals in zip(pos, data):
         med = float(np.median(vals)); iqr = float(np.percentile(vals, 75) - np.percentile(vals, 25))
-        ax.text(p, 1.04, f"Med {med:.2f}\nIQR {iqr:.2f}", ha="center", va="bottom", fontsize=7, color="black")
+        ax.text(p, -6.0, f"Med {med:.2f}\nIQR {iqr:.2f}", ha="center", va="center",
+                fontsize=8, fontweight="bold", color="black")
     for p, vals in zip([2, 4], [a_rg, b_rg]):
+        q1 = float(np.percentile(vals, 25)); iqr = float(np.percentile(vals, 75) - q1)
+        y = q1 - 1.5 * iqr - 0.55
         neg = float((vals < 0).mean() * 100)
-        ax.text(p, 0.20, f"negative folds {neg:.0f}%\nworst {vals.min():.1f}", ha="center",
-                va="top", fontsize=6.5, color=CR_LAYOUT)
+        ax.text(p, y, f"negative folds {neg:.0f}%\nworst {vals.min():.1f}", ha="center", va="top",
+                fontsize=7.5, fontweight="bold", color=CR_LAYOUT,
+                bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=1.2))
     ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.6)
     ax.set_xticks(pos)
-    ax.set_xticklabels(["A\nrandom\n10 folds", "A\ngrouped\n10 x 10", "B\nrandom\n10 folds", "B\ngrouped\n10 x 10"])
-    ax.set_ylabel(f"{target} $R^2$ (per fold)")
+    ax.set_xticklabels(["A\nrandom\n10 folds", "A\ngrouped\n10 x 10", "B\nrandom\n10 folds", "B\ngrouped\n10 x 10"],
+                       fontsize=10, fontweight="bold")
+    ax.set_ylabel(f"{target} $R^2$ (per fold)", fontsize=11, fontweight="bold")
     ax.set_ylim(-8, 1.35); ax.set_yticks([-6, -4, -2, 0, 1])
-    ax.tick_params(direction="in", top=False, right=False)
+    ax.tick_params(labelsize=10, width=0.9, direction="in", top=False, right=False)
+    for t in ax.get_yticklabels():
+        t.set_fontweight("bold")
     if letter:
-        ax.text(-0.18, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom", fontsize=14)
-
+        ax.text(-0.16, 1.03, f"({letter})", transform=ax.transAxes, ha="left", va="bottom",
+                fontsize=15, fontweight="bold")
 
 def panel_cv_uts(ax, letter=None):
     """random vs grouped 10-fold CV R2 for UTS."""

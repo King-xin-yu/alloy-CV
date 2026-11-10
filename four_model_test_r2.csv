@@ -1,0 +1,17 @@
+dataset,target,model,test_r2
+A,UTS,RF,0.788
+A,UTS,SVR,0.629
+A,UTS,XGB,0.741
+A,UTS,GBR,0.786
+A,conductivity,RF,0.763
+A,conductivity,SVR,0.71
+A,conductivity,XGB,0.748
+A,conductivity,GBR,0.716
+B,UTS,RF,0.93
+B,UTS,SVR,0.887
+B,UTS,XGB,0.927
+B,UTS,GBR,0.927
+B,conductivity,RF,0.782
+B,conductivity,SVR,0.624
+B,conductivity,XGB,0.589
+B,conductivity,GBR,0.536
