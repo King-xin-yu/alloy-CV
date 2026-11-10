@@ -20,6 +20,7 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 import alloycv_common as ac  # noqa: E402
 
+RES = REPO / "results" if (REPO / "results").is_dir() else REPO
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -98,12 +99,12 @@ embolden(fig); save(fig, "Figure_9")
 
 # ---------------- Fig. 10 generalization of the failure (a-b) ----------------
 _CB, _CR = "#4477AA", "#CC6677"
-_cv = pd.read_csv(REPO / "results" / "cv_per_fold_R2.csv")
+_cv = pd.read_csv(RES / "cv_per_fold_R2.csv")
 _cv = _cv[_cv.dataset == "B"].groupby(["target", "protocol"])["r2"].median()
 _rand = [0.855, 0.840, _cv.loc[("UTS", "random")], _cv.loc[("conductivity", "random")]]
 _grp = [0.438, 0.293, _cv.loc[("UTS", "grouped")], _cv.loc[("conductivity", "grouped")]]
 _keys = ["Kolev\nhardness", "Kolev\nconductivity", "This work\nUTS (B)", "This work\nconductivity (B)"]
-comp = pd.read_csv(REPO / "results" / "composition_errors.csv")
+comp = pd.read_csv(RES / "composition_errors.csv")
 fig, axes = plt.subplots(1, 2, figsize=(8.2, 4.4))
 ax = axes[0]; xx = np.arange(len(_keys)); w = 0.36
 ax.bar(xx - w / 2, _rand, w, color=_CB, edgecolor="black", linewidth=0.5, label="Random CV")

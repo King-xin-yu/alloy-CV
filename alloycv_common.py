@@ -36,6 +36,9 @@ from xgboost import XGBRegressor
 BASE_DIR = Path(__file__).parent
 DATASET_A = BASE_DIR / "dataset_A.csv"
 DATASET_B = BASE_DIR / "dataset_B.csv"
+RES_DIR = BASE_DIR / "results"
+if not RES_DIR.is_dir():
+    RES_DIR = BASE_DIR
 FIG_DIR = BASE_DIR / "figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)   # the panel scripts write their output here
 
@@ -470,7 +473,7 @@ def panel_corr_matrix(ax):
 
 
 def _draw_four_model_bars(ax, target, letter):
-    _rows = pd.read_csv(BASE_DIR / "results" / "four_model_test_r2.csv")
+    _rows = pd.read_csv(RES_DIR / "four_model_test_r2.csv")
     _sel = _rows[_rows["target"] == target]
     r2 = {ds: {row["model"]: float(row["test_r2"]) for _, row in _sel[_sel["dataset"] == ds].iterrows()}
           for ds in ("A", "B")}
@@ -513,7 +516,7 @@ def panel_test_r2_conductivity(ax):
 
 
 def _draw_cv_boxplot(ax, target, letter=None):
-    _rows = pd.read_csv(BASE_DIR / "results" / "cv_per_fold_R2.csv")
+    _rows = pd.read_csv(RES_DIR / "cv_per_fold_R2.csv")
 
     def _fold_values(ds, protocol):
         sub = _rows[(_rows["dataset"] == ds) & (_rows["target"] == target)
